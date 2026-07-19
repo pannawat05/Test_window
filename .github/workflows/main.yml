@@ -1,0 +1,33 @@
+name: Windows Cloud Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    # ใช้เครื่องระบบ Windows ล่าสุดที่ GitHub เตรียมไว้ให้
+    runs-on: windows-latest
+
+    steps:
+      # 1. ดึงโค้ดจาก Repository ลงมาในเครื่อง Runner
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. ตัวอย่างการรันคำสั่งผ่าน PowerShell
+      - name: Run PowerShell Command
+        shell: powershell
+        run: |
+          Write-Host "สวัสดีจาก Windows บนระบบ Cloud ของ GitHub!"
+          $os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "กำลังรันบน OS: $($os.Caption)"
+
+      # 3. ตัวอย่างการรันคำสั่งผ่าน CMD (Command Prompt)
+      - name: Run CMD Command
+        shell: cmd
+        run: |
+          echo ตรวจสอบเวอร์ชันของเครื่องมือที่มีให้อัตโนมัติ
+          dotnet --version
+          node --version
