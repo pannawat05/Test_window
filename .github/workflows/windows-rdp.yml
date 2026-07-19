@@ -1,0 +1,33 @@
+name: Windows Cloud Remote Desktop
+
+# เปิดให้มีปุ่มกดสั่งรัน RDP ด้วยตัวเองจากหน้าเว็บ GitHub
+on:
+  workflow_dispatch:
+
+jobs:
+  remote-desktop:
+    runs-on: windows-latest
+    
+    steps:
+      # 1. ดึงโค้ดโปรเจกต์ลงเครื่อง (เผื่อคุณต้องการเช็คไฟล์ในเครื่อง)
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. ตั้งค่าระบบป้องกันไม่ให้ Windows ปิดหน้าจอ หรือ Sleep ระหว่างใช้งาน
+      - name: Configure Windows Environment
+        shell: powershell
+        run: |
+          Set-PowerPlan -Plan "High performance"
+          Write-Host "ตั้งค่าโหมดประสิทธิภาพสูงสุดเรียบร้อย"
+
+      # 3. รันสคริปต์เชื่อมต่อ RDP ผ่าน Tunnel ของ ngrok
+      # แนะนำให้ใช้เวอร์ชันเสถียรล่าสุดเพื่อความปลอดภัย
+      - name: Setup Remote Desktop Session
+        uses: NyaMisty/reverse-rdp-windows-github-actions-ng@v1.1
+        with:
+          # ดึง Token จากหน้า Settings -> Secrets ของคลังโค้ดคุณ
+          ngrok-token: ${{ secrets.NGROK_AUTH_TOKEN }}
+          
+          # กำหนดรหัสผ่านสำหรับเข้าเครื่อง (คุณสามารถเปลี่ยนตรงนี้ได้เลย)
+          # เงื่อนไข: ต้องมีอักษรพิมพ์ใหญ่ พิมพ์เล็ก ตัวเลข และความยาว 8 ตัวขึ้นไป
+          password: "SecurePassword2026!" 
