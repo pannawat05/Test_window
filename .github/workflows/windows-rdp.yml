@@ -1,20 +1,57 @@
 name: Windows Cloud Remote Desktop
 
 on:
-  workflow_dispatch: # เปิดให้มีปุ่มกดสั่งรัน RDP ด้วยตัวเองจากหน้าเว็บ GitHub
+  workflow_dispatch: # กดปุ่มรันมือเองจากหน้าเว็บ GitHub
 
 jobs:
   remote-desktop:
     runs-on: windows-latest
     
     steps:
-      # 1. ดึงโค้ดโปรเจกต์ลงเครื่องตามปกติ
+      # 1. ดึงโค้ดลงเครื่อง
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. เปิดระบบรีโมทด้วย tmate (เป็นระบบแชร์หน้าจอเทอร์มินัลและรีโมทที่ปลอดภัย)
-      - name: Setup Tmate Session
-        uses: mxschmitt/action-tmate@v3
-        with:
-          # สั่งให้เครื่องเปิดค้างไว้เพื่อรอเราเชื่อมต่อเข้าไป
-          limit-access-to-actor: true
+      # 2. ดาวน์โหลด ngrok และสั่งเปิดระบบรีโมท Windows (RDP) ด้วยสคริปต์ตรง
+      - name: Enable RDP and Start ngrok Tunnel
+        shell: powershell
+        env:
+          NGROK_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        run: |
+          # 2.1 เปิดฟังก์ชัน Remote Desktop ของ Windows
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          
+          # 2.2 ตั้งรหัสผ่านใหม่ให้กับ User: runneradmin (รหัสผ่านนี้คุณนำไปใช้ล็อกอินตอนเข้า RDP)
+          $password = ConvertTo-SecureString "SecurePassword2026!" -AsPlainText -Force
+          Set-LocalUser -Name "runneradmin" -Password $password
+          
+          # 2.3 ดาวน์โหลดและติดตั้ง ngrok เวอร์ชันล่าสุดอย่างเป็นทางการ
+          Invoke-WebRequest -Uri "https://equinox.io" -OutFile "ngrok.zip"
+          Expand-Archive -Path "ngrok.zip" -DestinationPath "."
+          
+          # 2.4 ตรวจสอบว่าใส่ Token หรือยัง
+          if (-not $env:NGROK_TOKEN) {
+              Write-Error "กรุณาเช็คว่าตั้งค่า NGROK_AUTH_TOKEN ใน GitHub Secrets เรียบร้อยแล้วหรือยัง!"
+              exit 1
+          }
+          
+          # 2.5 บันทึก Token และเปิดท่อ Tunnel เจาะพอร์ต RDP (3389) ออกไปภายนอก
+          ./ngrok.exe config add-authtoken $env:NGROK_TOKEN
+          Start-Process ./ngrok.exe -ArgumentList "tcp 3389"
+          
+          # 2.6 หน่วงเวลาให้ ngrok สร้างลิงก์สักครู่ แล้วดึงที่อยู่ URL มาแสดงในหน้า Log
+          Start-Sleep -Seconds 5
+          $response = Invoke-RestMethod -Uri "http://127.0.0"
+          $public_url = $response.tunnels.public_url
+          
+          Write-Host "==========================================================================" -ForegroundColor Green
+          Write-Host "ที่อยู่เชื่อมต่อ RDP ของคุณคือ: $public_url" -ForegroundColor Green
+          Write-Host "Username: runneradmin" -ForegroundColor Green
+          Write-Host "Password: SecurePassword2026!" -ForegroundColor Green
+          Write-Host "==========================================================================" -ForegroundColor Green
+          
+          # 2.7 สั่งให้เครื่องรันค้างไว้ 6 ชั่วโมง (หรือจนกว่าคุณจะกด Cancel)
+          Write-Host "เครื่องพร้อมใช้งานแล้ว ระบบจะเปิดค้างไว้ให้คุณ..."
+          $timeout = New-TimeSpan -Hours 6
+          Start-Sleep -Seconds $timeout.TotalSeconds
